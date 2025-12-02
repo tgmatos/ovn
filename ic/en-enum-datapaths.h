@@ -16,6 +16,14 @@
 /* OVN includes. */
 #include "lib/inc-proc-eng.h"
 
+struct enum_datapaths_tracked {
+    struct shash crupdated_ls;
+    struct shash deleted_ls;
+
+    struct shash crupdated_datapaths;
+    struct shash deleted_datapaths;
+};
+
 /* struct which maintains the data of the engine node enumerate datapaths. */
 struct ed_type_enum_datapaths {
     struct hmap dp_tnlids;
@@ -23,21 +31,7 @@ struct ed_type_enum_datapaths {
     struct shash isb_tr_dps;
     bool tracked;
 
-    struct hmap tracked_data;
-};
-
-enum ic_db_change_type {
-    IC_DB_ADD,
-    IC_DB_UPDATE,
-    IC_DB_DELETE
-};
-
-struct enum_datapaths_tracked {
-    struct hmap_node node;
-    const struct icsbrec_datapath_binding *isb_dp;
-    const struct nbrec_logical_switch *nb_ls;
-    const struct icnbrec_transit_switch *nb_ic_ts;
-    enum ic_db_change_type change_type;
+    struct enum_datapaths_tracked tracked_data;
 };
 
 void *en_enum_datapaths_init(struct engine_node *, struct engine_arg *);
@@ -49,7 +43,5 @@ enum engine_input_handler_result
     icsb_datapath_binding_handler(struct engine_node *, void *data);
 enum engine_input_handler_result
     nb_logical_switch_handler(struct engine_node *, void *data);
-enum engine_input_handler_result
-    icnb_transit_switch_handler(struct engine_node *, void *data);
 
 #endif

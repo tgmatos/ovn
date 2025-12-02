@@ -34,6 +34,7 @@
 #include "lib/ovn-util.h"
 #include "lib/stopwatch-names.h"
 #include "coverage.h"
+#include "smap.h"
 #include "stopwatch.h"
 #include "stopwatch-names.h"
 
@@ -47,6 +48,7 @@ static enum ic_datapath_type
 ic_dp_get_type(const struct icsbrec_datapath_binding *isb_dp);
 static void enum_datapaths_init(struct ed_type_enum_datapaths *data);
 static void enum_datapaths_destroy(struct ed_type_enum_datapaths *data);
+static void clear_shash(struct shash *sh);
 static void enum_datapaths_clear_tracked(struct ed_type_enum_datapaths *data);
 static void enum_datapaths_clear(struct ed_type_enum_datapaths *data);
 
@@ -93,6 +95,7 @@ enum engine_input_handler_result
 icsb_datapath_binding_handler(struct engine_node *node, void *data)
 {
     struct ed_type_enum_datapaths *dp_data = data;
+    struct enum_datapaths_tracked tr_data = dp_data->tracked_data;
     const struct icsbrec_datapath_binding_table *dp_table =
         EN_OVSDB_GET(engine_get_input("ICSB_datapath_binding", node));
 
@@ -102,12 +105,7 @@ icsb_datapath_binding_handler(struct engine_node *node, void *data)
     ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH_TRACKED (isb_dp, dp_table) {
         changed = true;
 
-        struct enum_datapaths_tracked *tr_data = xzalloc(sizeof *tr_data);
-        tr_data->isb_dp = isb_dp;
-
         if (icsbrec_datapath_binding_is_deleted(isb_dp)) {
-            tr_data->change_type = IC_DB_DELETE;
-
             ovn_free_tnlid(&dp_data->dp_tnlids, isb_dp->tunnel_key);
             if (ic_dp_get_type(isb_dp) == IC_ROUTER) {
                 char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
@@ -117,11 +115,11 @@ icsb_datapath_binding_handler(struct engine_node *node, void *data)
                 shash_find_and_delete(&dp_data->isb_ts_dps,
                                       isb_dp->transit_switch);
             }
-        } else {
-            tr_data->change_type = icsbrec_datapath_binding_is_new(isb_dp)
-                                   ? IC_DB_ADD : IC_DB_UPDATE;
 
-            if (tr_data->change_type == IC_DB_UPDATE) {
+            shash_add(&tr_data.deleted_datapaths,
+                      isb_dp->transit_switch, isb_dp);
+        } else {
+            if (icsbrec_datapath_binding_is_new(isb_dp)) {
                 const struct icsbrec_datapath_binding *old_dp = NULL;
                 if (ic_dp_get_type(isb_dp) == IC_ROUTER) {
                     char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
@@ -134,6 +132,9 @@ icsb_datapath_binding_handler(struct engine_node *node, void *data)
                 if (old_dp) {
                     ovn_free_tnlid(&dp_data->dp_tnlids, old_dp->tunnel_key);
                 }
+
+                shash_add(&tr_data.crupdated_datapaths,
+                          isb_dp->transit_switch, isb_dp);
             }
 
             ovn_add_tnlid(&dp_data->dp_tnlids, isb_dp->tunnel_key);
@@ -146,8 +147,6 @@ icsb_datapath_binding_handler(struct engine_node *node, void *data)
                               (void *)isb_dp);
             }
         }
-        hmap_insert(&dp_data->tracked_data, &tr_data->node,
-                    hash_pointer(isb_dp, 0));
     }
 
     if (changed) {
@@ -162,70 +161,58 @@ enum engine_input_handler_result
 nb_logical_switch_handler(struct engine_node *node, void *data)
 {
     struct ed_type_enum_datapaths *dp_data = data;
+    struct enum_datapaths_tracked tr_data =
+        dp_data->tracked_data;
+    const struct engine_context *ctx = engine_get_context();
+
     const struct nbrec_logical_switch_table *ls_table =
         EN_OVSDB_GET(engine_get_input("NB_logical_switch", node));
+
+    const struct icnbrec_transit_switch_table *ts_table =
+        EN_OVSDB_GET(engine_get_input("ICNB_transit_switch", node));
 
     const struct nbrec_logical_switch *ls;
     bool changed = false;
 
     NBREC_LOGICAL_SWITCH_TABLE_FOR_EACH_TRACKED (ls, ls_table) {
-        if (!smap_get(&ls->other_config, "interconn-ts")) {
+        const char *ts_name = smap_get(&ls->other_config, "interconn-ts");
+        if (!ts_name) {
             continue;
         }
 
         changed = true;
-
-        struct enum_datapaths_tracked *tr_data = xzalloc(sizeof *tr_data);
-        tr_data->nb_ls = ls;
-        
         if (nbrec_logical_switch_is_deleted(ls)) {
-            tr_data->change_type = IC_DB_DELETE;
-        } else if (nbrec_logical_switch_is_new(ls)) {
-            tr_data->change_type = IC_DB_ADD;
+            bool ts_exists = false;
+
+            /* Self-healing: The local Logical Switch was deleted, but the
+             * corresponding global Transit Switch still exists in ICNB.
+             * To maintain consistency with the global state and ensure
+             * connectivity, we immediately recreate the local Logical Switch.
+             */
+            const struct icnbrec_transit_switch *ts;
+            ICNBREC_TRANSIT_SWITCH_TABLE_FOR_EACH (ts, ts_table) {
+                if (!strcmp(ts->name, ts_name)) {
+                    ts_exists = true;
+                    break;
+                }
+            }
+
+            if (ts_exists) {
+                const struct nbrec_logical_switch *new_ls =
+                    nbrec_logical_switch_insert(ctx->ovnnb_idl_txn);
+                nbrec_logical_switch_set_name(new_ls, ts->name);
+                nbrec_logical_switch_update_other_config_setkey(
+                           new_ls, "interconn-ts", ts->name);
+                bool vxlan_mode = smap_get_bool(&ls->other_config,
+                                             "vxlan_mode", false);
+                nbrec_logical_switch_update_other_config_setkey(
+                                                new_ls, "ic-vxlan_mode",
+                                                vxlan_mode ? "true" : "false");
+            }
+            shash_add(&tr_data.deleted_ls, ls->name, ls);
         } else {
-            tr_data->change_type = IC_DB_UPDATE;
+            shash_add(&tr_data.crupdated_ls, ls->name, ls);
         }
-
-        hmap_insert(&dp_data->tracked_data, &tr_data->node,
-                    uuid_hash(&ls->header_.uuid));
-    }
-
-    if (changed) {
-        dp_data->tracked = true;
-        return EN_HANDLED_UPDATED;
-    }
-
-    return EN_HANDLED_UNCHANGED;
-}
-
-enum engine_input_handler_result
-icnb_transit_switch_handler(struct engine_node *node, void *data)
-{
-    VLOG_INFO("DBG-PG - %s : %s : %d", __FILE__, __func__, __LINE__);
-    struct ed_type_enum_datapaths *dp_data = data;
-    const struct icnbrec_transit_switch_table *ts_table =
-        EN_OVSDB_GET(engine_get_input("ICNB_transit_switch", node));
-
-    const struct icnbrec_transit_switch *ts;
-    bool changed = false;
-
-    ICNBREC_TRANSIT_SWITCH_TABLE_FOR_EACH_TRACKED (ts, ts_table) {
-        changed = true;
-
-        struct enum_datapaths_tracked *tr_data = xzalloc(sizeof *tr_data);
-        tr_data->nb_ic_ts = ts;
-
-        if (icnbrec_transit_switch_is_deleted(ts)) {
-            tr_data->change_type = IC_DB_DELETE;
-
-        } else if (icnbrec_transit_switch_is_new(ts)) {
-            tr_data->change_type = IC_DB_ADD;
-        } else {
-            tr_data->change_type = IC_DB_UPDATE;
-        }
-
-        hmap_insert(&dp_data->tracked_data, &tr_data->node,
-                    uuid_hash(&ts->header_.uuid));
     }
 
     if (changed) {
@@ -242,10 +229,10 @@ enum_datapath_run(const struct icsbrec_datapath_binding_table *dp_table,
 {
     const struct icsbrec_datapath_binding *isb_dp;
     ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH (isb_dp, dp_table) {
-        /* 1. Adiciona Tunnel ID */
+        /* 1. Adds Tunnel ID */
         ovn_add_tnlid(&dp_data->dp_tnlids, isb_dp->tunnel_key);
 
-        /* 2. Classifica o Datapath */
+        /* 2. Classifies the Datapath */
         enum ic_datapath_type dp_type = ic_dp_get_type(isb_dp);
         if (dp_type == IC_ROUTER) {
             char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
@@ -269,12 +256,22 @@ ic_dp_get_type(const struct icsbrec_datapath_binding *isb_dp)
 }
 
 static void
+enum_datapath_init_tracked_data(struct enum_datapaths_tracked *tracked_data)
+{
+    shash_init(&tracked_data->crupdated_datapaths);
+    shash_init(&tracked_data->deleted_datapaths);
+
+    shash_init(&tracked_data->crupdated_ls);
+    shash_init(&tracked_data->deleted_ls);
+}
+
+static void
 enum_datapaths_init(struct ed_type_enum_datapaths *data)
 {
     hmap_init(&data->dp_tnlids);
     shash_init(&data->isb_ts_dps);
     shash_init(&data->isb_tr_dps);
-    hmap_init(&data->tracked_data);
+    enum_datapath_init_tracked_data(&data->tracked_data);
     data->tracked = false;
 }
 
@@ -289,16 +286,28 @@ enum_datapaths_destroy(struct ed_type_enum_datapaths *data)
 }
 
 static void
+clear_shash(struct shash *sh)
+{
+    struct shash_node *node;
+    SHASH_FOR_EACH_SAFE (node, sh) {
+        hmap_remove(&sh->map, &node->node);
+        free(node->name);
+        free(node);
+    }
+}
+
+static void
 enum_datapaths_clear_tracked(struct ed_type_enum_datapaths *data)
 {
-    struct ed_type_enum_datapaths *dp_data = data;
-    struct enum_datapaths_tracked *tr_data;
+    struct enum_datapaths_tracked tr_data = data->tracked_data;
 
-    HMAP_FOR_EACH_SAFE (tr_data, node, &dp_data->tracked_data) {
-        hmap_remove(&dp_data->tracked_data, &tr_data->node);
-        free(tr_data);
-    }
-    dp_data->tracked = false;
+    clear_shash(&tr_data.crupdated_datapaths);
+    clear_shash(&tr_data.deleted_datapaths);
+
+    clear_shash(&tr_data.crupdated_ls);
+    clear_shash(&tr_data.deleted_ls);
+
+    data->tracked = false;
 }
 
 static void
@@ -310,11 +319,5 @@ enum_datapaths_clear(struct ed_type_enum_datapaths *data)
     shash_clear(&data->isb_ts_dps);
     shash_clear(&data->isb_tr_dps);
 
-    struct enum_datapaths_tracked *tr_data;
-    HMAP_FOR_EACH_SAFE (tr_data, node, &data->tracked_data) {
-        hmap_remove(&data->tracked_data, &tr_data->node);
-        free(tr_data);
-    }
-
-    data->tracked = false;
+    enum_datapaths_clear_tracked(data);
 }

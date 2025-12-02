@@ -87,6 +87,11 @@ struct lport_addresses {
     struct ipv6_netaddr *ipv6_addrs;
 };
 
+struct tnlid_node {
+    struct hmap_node hmap_node;
+    uint32_t tnlid;
+};
+
 static inline bool
 ipv6_is_all_router(const struct in6_addr *addr)
 {

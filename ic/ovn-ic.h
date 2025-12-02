@@ -11,12 +11,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "controller/encaps.h"
+#include "ovn-ic-sb-idl.h"
 #ifndef OVN_IC_H
 #define OVN_IC_H 1
 
 #include "ovsdb-idl.h"
 #include "unixctl.h"
 #include "lib/inc-proc-eng.h"
+
 
 struct ic_input {
     /* Northbound table references */
@@ -64,6 +67,7 @@ struct ic_input {
     struct ovsdb_idl_index *icsbrec_service_monitor_by_target_az;
     struct ovsdb_idl_index *icsbrec_service_monitor_by_target_az_logical_port;
 };
+
 
 struct ic_data {
     /* Global state for 'en-enum-datapaths'. */

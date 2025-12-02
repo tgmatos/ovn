@@ -30,6 +30,7 @@
 #include "en-enum-datapaths.h"
 #include "unixctl.h"
 #include "util.h"
+#include "en-ts.h"
 
 VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 
@@ -159,7 +160,8 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 /* Define engine nodes for other nodes. They should be defined as static to
  * avoid sparse errors. */
 static ENGINE_NODE(ic, SB_WRITE);
-static ENGINE_NODE(enum_datapaths);
+static ENGINE_NODE(enum_datapaths, CLEAR_TRACKED_DATA);
+static ENGINE_NODE(ts, SB_WRITE, CLEAR_TRACKED_DATA);
 
 void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
                       struct ovsdb_idl_loop *sb,
@@ -168,9 +170,12 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
 {
     /* Define relationships between nodes where first argument is dependent
      * on the second argument */
-    engine_add_input(&en_enum_datapaths, &en_nb_logical_switch, NULL);
-    engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch, NULL);
-    engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding, NULL);
+    engine_add_input(&en_enum_datapaths, &en_nb_logical_switch,
+                     nb_logical_switch_handler);
+    engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding,
+                     icsb_datapath_binding_handler);
+    engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch,
+                     engine_noop_handler);
 
     engine_add_input(&en_ic, &en_enum_datapaths, NULL);
     engine_add_input(&en_ic, &en_nb_nb_global, NULL);
@@ -202,6 +207,15 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_ic, &en_icsb_gateway, NULL);
     engine_add_input(&en_ic, &en_icsb_route, NULL);
     engine_add_input(&en_ic, &en_icsb_datapath_binding, NULL);
+
+    engine_add_input(&en_ts, &en_icnb_transit_switch, en_ts_handler);
+    engine_add_input(&en_ts, &en_icnb_ic_nb_global, en_ts_ic_nb_global_handler);
+    engine_add_input(&en_ts, &en_nb_logical_switch, engine_noop_handler);
+    engine_add_input(&en_ts, &en_icsb_datapath_binding, engine_noop_handler);
+    engine_add_input(&en_ts, &en_icsb_encap, engine_noop_handler);
+
+    engine_add_input(&en_ts, &en_enum_datapaths, engine_noop_handler);
+    engine_add_input(&en_ic, &en_ts, NULL);
 
     struct engine_arg engine_arg = {
         .nb_idl = nb->idl,

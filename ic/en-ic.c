@@ -25,6 +25,7 @@
 #include "ovn-ic.h"
 #include "en-ic.h"
 #include "en-enum-datapaths.h"
+#include "ic/en-ts.h"
 #include "lib/ovn-ic-sb-idl.h"
 #include "lib/inc-proc-eng.h"
 #include "lib/ovn-util.h"
@@ -170,7 +171,6 @@ en_ic_run(struct engine_node *node, void *data)
 
     ic_get_input_data(node, &input_data);
     input_data.runned_az = eng_ctx->client_ctx;
-
     COVERAGE_INC(ic_run);
     stopwatch_start(IC_OVN_DB_RUN_STOPWATCH_NAME, time_msec());
     ovn_db_run(&input_data, ic_data, (struct engine_context *) eng_ctx);

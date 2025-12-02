@@ -4451,3 +4451,105 @@ OVN_CLEANUP_IC([az1], [az2])
 
 AT_CLEANUP
 ])
+
+OVN_FOR_EACH_NORTHD([
+AT_SETUP([ovn-ic -- Incremental Processing of Transit Switch Engine])
+
+ovn_init_ic_db
+
+n_az=3
+n_ts=10
+for i in `seq 1 $n_az`; do
+    ovn_start az$i
+done
+
+net_add n1
+
+# 1 HV and 1 GW per AZ
+for az in `seq 1 $n_az`; do
+    sim_add hv$az
+    as hv$az
+    check ovs-vsctl add-br br-phys
+    ovn_az_attach az$az n1 br-phys 192.168.$az.1 16
+    for p in `seq 1 $n_ts`; do
+        check ovs-vsctl -- add-port br-int vif$p -- \
+            set interface vif$p external-ids:iface-id=lsp$az-$p \
+            options:tx_pcap=hv$az/vif$p-tx.pcap \
+            options:rxq_pcap=hv$az/vif$p-rx.pcap \
+            ofport-request=$p
+    done
+
+    sim_add gw$az
+    as gw$az
+    check ovs-vsctl add-br br-phys
+    ovn_az_attach az$az n1 br-phys 192.168.$az.2 16
+    check ovs-vsctl set open . external-ids:ovn-is-interconn=true
+done
+
+for ts in `seq 1 $n_ts`; do
+    AT_CHECK([ovn-ic-nbctl --wait=sb ts-add ts$ts], [0], [ignore])
+done
+
+for i in `seq 1 $n_ts`; do
+        # FIX: Format 'i' as 2-digit hex (e.g., 10 -> 0a)
+        id_hex=$(printf "%02x" $i)
+
+        lsp_mac=00:00:00:0$az:$id_hex:00
+        lrp_ls_mac=00:00:00:0$az:$id_hex:01
+        lrp_ts_mac=00:00:00:0$az:$id_hex:02
+
+        lsp_ip=10.$az.$i.123
+        lrp_ls_ip=10.$az.$i.1
+        lrp_ts_ip=169.254.$i.$az
+
+        check ovn-nbctl ls-add ls$az-$i
+        check ovn-nbctl lsp-add ls$az-$i lsp$az-$i
+        check ovn-nbctl lsp-set-addresses lsp$az-$i "$lsp_mac $lsp_ip"
+
+        check ovn-nbctl lr-add lr$az-$i
+
+        check ovn-nbctl lrp-add lr$az-$i lrp-lr$az-$i-ls$az-$i $lrp_ls_mac $lrp_ls_ip/24
+        check ovn-nbctl lsp-add-router-port ls$az-$i lsp-ls$az-$i-lr$az-$i lrp-lr$az-$i-ls$az-$i
+
+        check ovn-nbctl -- lrp-add lr$az-$i lrp-lr$az-$i-ts$i $lrp_ts_mac $lrp_ts_ip/24 \
+                        -- lsp-add-router-port ts$i lsp-ts$i-lr$az-$i lrp-lr$az-$i-ts$i \
+                        -- lrp-set-gateway-chassis lrp-lr$az-$i-ts$i gw$az
+done
+
+check_row_count ic-nb:Transit_Switch 10
+check_row_count ic-sb:Datapath_Binding 10
+
+check ovn-ic-nbctl --wait=sb ts-del ts1
+check ovn-ic-nbctl --wait=sb ts-del ts2
+
+check_row_count ic-nb:Transit_Switch 8
+check_row_count ic-sb:Datapath_Binding 8
+
+for i in `seq 1 $n_az`; do
+     # REMOVED 'check' from the start of these lines
+     ovn_as az$i check_row_count nb:Logical_Switch 0 name=ts1
+     ovn_as az$i check_row_count nb:Logical_Switch 0 name=ts2
+done
+
+ovn-ic-nbctl --wait=sb ts-add ts1
+ovn-ic-nbctl --wait=sb ts-add ts2
+
+check_row_count ic-nb:Transit_Switch 10
+check_row_count ic-sb:Datapath_Binding 10
+
+for i in `seq 1 $n_az`; do
+     ovn_as az$i check_row_count nb:Logical_Switch 1 name=ts1
+     ovn_as az$i check_row_count nb:Logical_Switch 1 name=ts2
+done
+
+check ovn-ic-nbctl --wait=sb set IC_NB_Global . options:vxlan_mode=true
+check ovn-ic-nbctl --wait=sb set IC_NB_Global . options:vxlan_mode=false
+
+OVN_CLEANUP_SBOX([hv1])
+OVN_CLEANUP_SBOX([hv2])
+OVN_CLEANUP_SBOX([hv3])
+
+OVN_CLEANUP_IC
+
+AT_CLEANUP
+])

@@ -714,10 +714,10 @@ ovn_logical_flow_hash(uint8_t table_id, enum ovn_pipeline pipeline,
 }
 
 
-struct tnlid_node {
-    struct hmap_node hmap_node;
-    uint32_t tnlid;
-};
+/* struct tnlid_node { */
+/*     struct hmap_node hmap_node; */
+/*     uint32_t tnlid; */
+/* }; */
 
 void
 ovn_destroy_tnlids(struct hmap *tnlids)
