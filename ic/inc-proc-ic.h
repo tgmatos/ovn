@@ -21,8 +21,12 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
                       struct ovsdb_idl_loop *icnb,
                       struct ovsdb_idl_loop *icsb);
 
-bool inc_proc_ic_run(struct ic_context *ctx,
-                     struct ic_engine_context *ic_eng_ctx);
+bool inc_proc_ic_run(struct ovsdb_idl_txn *ovnnb_txn,
+                     struct ovsdb_idl_txn *ovnsb_txn,
+                     struct ovsdb_idl_txn *ovninb_txn,
+                     struct ovsdb_idl_txn *ovnisb_txn,
+                     struct ic_engine_context *ctx,
+                     const struct icsbrec_availability_zone *runned_az);
 
 void inc_proc_ic_cleanup(void);
 bool inc_proc_ic_can_run(struct ic_engine_context *ctx);
