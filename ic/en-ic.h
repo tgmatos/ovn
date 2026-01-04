@@ -12,7 +12,7 @@
 enum engine_node_state en_ic_run(struct engine_node *node OVS_UNUSED,
                                  void *data OVS_UNUSED);
 void *en_ic_init(struct engine_node *node OVS_UNUSED,
-                 struct engine_arg *arg);
+                 struct engine_arg *arg OVS_UNUSED);
 void en_ic_cleanup(void *data);
 
 #endif /* EN_IC_H */
