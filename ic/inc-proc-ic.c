@@ -157,7 +157,7 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 
 /* Define engine nodes for other nodes. They should be defined as static to
  * avoid sparse errors. */
-static ENGINE_NODE(ic);
+static ENGINE_NODE(ic, SB_WRITE);
 
 void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
                       struct ovsdb_idl_loop *sb,
@@ -187,11 +187,11 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_ic, &en_icnb_transit_router, NULL);
     engine_add_input(&en_ic, &en_icnb_transit_router_port, NULL);
 
+    engine_add_input(&en_ic, &en_icsb_ic_sb_global, NULL);
+    engine_add_input(&en_ic, &en_icsb_availability_zone, NULL);
     engine_add_input(&en_ic, &en_icsb_encap, NULL);
     engine_add_input(&en_ic, &en_icsb_service_monitor, NULL);
-    engine_add_input(&en_ic, &en_icsb_ic_sb_global, NULL);
     engine_add_input(&en_ic, &en_icsb_port_binding, NULL);
-    engine_add_input(&en_ic, &en_icsb_availability_zone, NULL);
     engine_add_input(&en_ic, &en_icsb_gateway, NULL);
     engine_add_input(&en_ic, &en_icsb_route, NULL);
     engine_add_input(&en_ic, &en_icsb_datapath_binding, NULL);
@@ -203,22 +203,149 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
         .icsb_idl = icsb->idl,
     };
 
+    /* create IDL indexes*/
+    struct ovsdb_idl_index *nbrec_ls_by_name
+        = ovsdb_idl_index_create1(nb->idl, &nbrec_logical_switch_col_name);
+    struct ovsdb_idl_index *nbrec_lr_by_name
+        = ovsdb_idl_index_create1(nb->idl, &nbrec_logical_router_col_name);
+    struct ovsdb_idl_index *nbrec_lrp_by_name
+        = ovsdb_idl_index_create1(nb->idl,
+                                  &nbrec_logical_router_port_col_name);
+    struct ovsdb_idl_index *nbrec_port_by_name
+        = ovsdb_idl_index_create1(nb->idl,
+                                  &nbrec_logical_switch_port_col_name);
+    struct ovsdb_idl_index *sbrec_chassis_by_name
+        = ovsdb_idl_index_create1(sb->idl, &sbrec_chassis_col_name);
+    struct ovsdb_idl_index *sbrec_port_binding_by_name
+        = ovsdb_idl_index_create1(sb->idl,
+                                  &sbrec_port_binding_col_logical_port);
+    struct ovsdb_idl_index *sbrec_service_monitor_by_remote_type
+        = ovsdb_idl_index_create1(sb->idl,
+                                  &sbrec_service_monitor_col_remote);
+    struct ovsdb_idl_index *sbrec_service_monitor_by_ic_learned
+        = ovsdb_idl_index_create1(sb->idl,
+                                  &sbrec_service_monitor_col_ic_learned);
+    struct ovsdb_idl_index *sbrec_service_monitor_by_remote_type_logical_port
+        = ovsdb_idl_index_create2(sb->idl,
+                                  &sbrec_service_monitor_col_remote,
+                                  &sbrec_service_monitor_col_logical_port);
+    struct ovsdb_idl_index *icnbrec_transit_switch_by_name
+        = ovsdb_idl_index_create1(icnb->idl,
+                                  &icnbrec_transit_switch_col_name);
+    struct ovsdb_idl_index *icsbrec_port_binding_by_az
+        = ovsdb_idl_index_create1(icsb->idl,
+                                  &icsbrec_port_binding_col_availability_zone);
+    struct ovsdb_idl_index *icsbrec_port_binding_by_ts
+        = ovsdb_idl_index_create1(icsb->idl,
+                                  &icsbrec_port_binding_col_transit_switch);
+    struct ovsdb_idl_index *icsbrec_port_binding_by_ts_az
+        = ovsdb_idl_index_create2(icsb->idl,
+                                  &icsbrec_port_binding_col_transit_switch,
+                                  &icsbrec_port_binding_col_availability_zone);
+    struct ovsdb_idl_index *icsbrec_route_by_az
+        = ovsdb_idl_index_create1(icsb->idl,
+                                  &icsbrec_route_col_availability_zone);
+    struct ovsdb_idl_index *icsbrec_route_by_ts
+        = ovsdb_idl_index_create1(icsb->idl,
+                                  &icsbrec_route_col_transit_switch);
+    struct ovsdb_idl_index *icsbrec_route_by_ts_az
+        = ovsdb_idl_index_create2(icsb->idl,
+                                  &icsbrec_route_col_transit_switch,
+                                  &icsbrec_route_col_availability_zone);
+    struct ovsdb_idl_index *icsbrec_service_monitor_by_source_az
+        = ovsdb_idl_index_create1(icsb->idl,
+            &icsbrec_service_monitor_col_source_availability_zone);
+    struct ovsdb_idl_index *icsbrec_service_monitor_by_target_az
+        = ovsdb_idl_index_create1(icsb->idl,
+            &icsbrec_service_monitor_col_target_availability_zone);
+    struct ovsdb_idl_index *icsbrec_service_monitor_by_target_az_logical_port
+        = ovsdb_idl_index_create2(icsb->idl,
+            &icsbrec_service_monitor_col_target_availability_zone,
+            &icsbrec_service_monitor_col_logical_port);
+
     engine_init(&en_ic, &engine_arg);
+
+    /* indexes */
+    engine_ovsdb_node_add_index(&en_nb_logical_switch,
+                                "nbrec_ls_by_name",
+                                nbrec_ls_by_name);
+    engine_ovsdb_node_add_index(&en_nb_logical_router,
+                                "nbrec_lr_by_name",
+                                nbrec_lr_by_name);
+    engine_ovsdb_node_add_index(&en_nb_logical_router,
+                                "nbrec_lrp_by_name",
+                                nbrec_lrp_by_name);
+    engine_ovsdb_node_add_index(&en_nb_logical_switch,
+                                "nbrec_port_by_name",
+                                nbrec_port_by_name);
+    engine_ovsdb_node_add_index(&en_sb_chassis,
+                                "sbrec_chassis_by_name",
+                                sbrec_chassis_by_name);
+    engine_ovsdb_node_add_index(&en_sb_port_binding,
+                                "sbrec_port_binding_by_name",
+                                sbrec_port_binding_by_name);
+    engine_ovsdb_node_add_index(&en_sb_service_monitor,
+                                "sbrec_service_monitor_by_remote_type",
+                                sbrec_service_monitor_by_remote_type);
+    engine_ovsdb_node_add_index(&en_sb_service_monitor,
+                                "sbrec_service_monitor_by_ic_learned",
+                                sbrec_service_monitor_by_ic_learned);
+    engine_ovsdb_node_add_index(&en_sb_service_monitor,
+        "sbrec_service_monitor_by_remote_type_logical_port",
+        sbrec_service_monitor_by_remote_type_logical_port);
+    engine_ovsdb_node_add_index(&en_icnb_transit_switch,
+                                "icnbrec_transit_switch_by_name",
+                                icnbrec_transit_switch_by_name);
+    engine_ovsdb_node_add_index(&en_icsb_port_binding,
+                                "icsbrec_port_binding_by_az",
+                                icsbrec_port_binding_by_az);
+    engine_ovsdb_node_add_index(&en_icsb_port_binding,
+                                "icsbrec_port_binding_by_ts",
+                                icsbrec_port_binding_by_ts);
+    engine_ovsdb_node_add_index(&en_icsb_port_binding,
+                                "icsbrec_port_binding_by_ts_az",
+                                icsbrec_port_binding_by_ts_az);
+    engine_ovsdb_node_add_index(&en_icsb_route,
+                                "icsbrec_route_by_az",
+                                icsbrec_route_by_az);
+    engine_ovsdb_node_add_index(&en_icsb_route,
+                                "icsbrec_route_by_ts",
+                                icsbrec_route_by_ts);
+    engine_ovsdb_node_add_index(&en_icsb_route,
+                                "icsbrec_route_by_ts_az",
+                                icsbrec_route_by_ts_az);
+    engine_ovsdb_node_add_index(&en_icsb_service_monitor,
+                                "icsbrec_service_monitor_by_source_az",
+                                icsbrec_service_monitor_by_source_az);
+    engine_ovsdb_node_add_index(&en_icsb_service_monitor,
+                                "icsbrec_service_monitor_by_target_az",
+                                icsbrec_service_monitor_by_target_az);
+    engine_ovsdb_node_add_index(&en_icsb_service_monitor,
+        "icsbrec_service_monitor_by_target_az_logical_port",
+        icsbrec_service_monitor_by_target_az_logical_port);
 }
 
 /* Returns true if the incremental processing ended up updating nodes. */
 bool
-inc_proc_ic_run(struct ic_context *ctx,
-                struct ic_engine_context *ic_eng_ctx)
+inc_proc_ic_run(struct ovsdb_idl_txn *ovnnb_txn,
+                struct ovsdb_idl_txn *ovnsb_txn,
+                struct ovsdb_idl_txn *ovninb_txn,
+                struct ovsdb_idl_txn *ovnisb_txn,
+                struct ic_engine_context *ctx,
+                const struct icsbrec_availability_zone *runned_az)
 {
-    ovs_assert(ctx->ovnnb_txn && ctx->ovnsb_txn &&
-               ctx->ovninb_txn && ctx->ovnisb_txn);
+    ovs_assert(ovnnb_txn && ovnsb_txn &&
+               ovninb_txn && ovnisb_txn);
 
     int64_t start = time_msec();
     engine_init_run();
 
     struct engine_context eng_ctx = {
-        .client_ctx = ctx,
+        .client_ctx = (void *) runned_az,
+        .ovnnb_idl_txn = ovnnb_txn,
+        .ovnsb_idl_txn = ovnsb_txn,
+        .ovninb_idl_txn = ovninb_txn,
+        .ovnisb_idl_txn = ovnisb_txn,
     };
 
     engine_set_context(&eng_ctx);
@@ -241,7 +368,7 @@ inc_proc_ic_run(struct ic_context *ctx,
     int64_t now = time_msec();
     /* Postpone the next run by length of current run with maximum capped
      * by "northd-backoff-interval-ms" interval. */
-    ic_eng_ctx->next_run_ms = now + MIN(now - start, ic_eng_ctx->backoff_ms);
+    ctx->next_run_ms = now + MIN(now - start, ctx->backoff_ms);
 
     return engine_has_updated();
 }

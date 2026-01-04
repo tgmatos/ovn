@@ -40,4 +40,7 @@
 #define DYNAMIC_ROUTES_RUN_STOPWATCH_NAME "dynamic_routes"
 #define GROUP_ECMP_ROUTE_RUN_STOPWATCH_NAME "group_ecmp_route"
 
+#define OVN_IC_LOOP_STOPWATCH_NAME "ovn-ic-loop"
+#define IC_OVN_DB_RUN_STOPWATCH_NAME "ovn_db_run"
+
 #endif
