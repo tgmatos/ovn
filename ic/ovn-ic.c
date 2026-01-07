@@ -172,16 +172,6 @@ allocate_dp_key(struct hmap *dp_tnlids, bool vxlan_mode, const char *name)
             &hint);
 }
 
-static enum ic_datapath_type
-ic_dp_get_type(const struct icsbrec_datapath_binding *isb_dp)
-{
-    if (isb_dp->type && !strcmp(isb_dp->type, "transit-router")) {
-        return IC_ROUTER;
-    }
-
-    return IC_SWITCH;
-}
-
 static enum ic_port_binding_type
 ic_pb_get_type(const struct icsbrec_port_binding *isb_pb)
 {
@@ -190,28 +180,6 @@ ic_pb_get_type(const struct icsbrec_port_binding *isb_pb)
     }
 
     return IC_SWITCH_PORT;
-}
-
-static void
-enumerate_datapaths(struct ic_input *ic,
-                    struct hmap *dp_tnlids,
-                    struct shash *isb_ts_dps,
-                    struct shash *isb_tr_dps)
-{
-    const struct icsbrec_datapath_binding *isb_dp;
-    ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH (isb_dp,
-        ic->icsbrec_datapath_binding_table) {
-        ovn_add_tnlid(dp_tnlids, isb_dp->tunnel_key);
-
-        enum ic_datapath_type dp_type = ic_dp_get_type(isb_dp);
-        if (dp_type == IC_ROUTER) {
-            char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
-            shash_add(isb_tr_dps, uuid_str, isb_dp);
-            free(uuid_str);
-        } else {
-            shash_add(isb_ts_dps, isb_dp->transit_switch, isb_dp);
-        }
-    }
 }
 
 static void
@@ -275,7 +243,17 @@ ts_run(struct engine_context *ctx,
 
             const struct icsbrec_datapath_binding *isb_dp;
             isb_dp = shash_find_data(isb_ts_dps, ts->name);
-            if (isb_dp) {
+            if (!isb_dp) {
+                const struct icsbrec_datapath_binding *raw;
+                ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH (raw,
+                    ic->icsbrec_datapath_binding_table) {
+                    if (raw->transit_switch && !strcmp(raw->transit_switch,
+                                                       ts->name)) {
+                        isb_dp = raw;
+                        break;
+                    }
+                }
+            } else {
                 int64_t nb_tnl_key = smap_get_int(&ls->other_config,
                                                   "requested-tnl-key",
                                                   0);
@@ -309,6 +287,24 @@ ts_run(struct engine_context *ctx,
             ic->icnbrec_transit_switch_table) {
             const struct icsbrec_datapath_binding *isb_dp =
                 shash_find_and_delete(isb_ts_dps, ts->name);
+
+            if (!isb_dp) {
+                const struct icsbrec_datapath_binding *raw_isb;
+                ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH (raw_isb,
+                    ic->icsbrec_datapath_binding_table) {
+                    if (raw_isb->n_nb_ic_uuid > 0 &&
+                        uuid_equals(&raw_isb->nb_ic_uuid[0],
+                                    &ts->header_.uuid)) {
+                        isb_dp = raw_isb;
+                        if (isb_dp->transit_switch) {
+                            shash_find_and_delete(isb_ts_dps,
+                                                  isb_dp->transit_switch);
+                        }
+                        break;
+                    }
+                }
+            }
+
             if (!isb_dp) {
                 /* Allocate tunnel key */
                 int64_t dp_key = allocate_dp_key(dp_tnlids, vxlan_mode,
@@ -320,6 +316,9 @@ ts_run(struct engine_context *ctx,
                 isb_dp = icsbrec_datapath_binding_insert(ctx->ovnisb_idl_txn);
                 icsbrec_datapath_binding_set_transit_switch(isb_dp, ts->name);
                 icsbrec_datapath_binding_set_tunnel_key(isb_dp, dp_key);
+                icsbrec_datapath_binding_set_nb_ic_uuid(isb_dp,
+                                                        &ts->header_.uuid, 1);
+                icsbrec_datapath_binding_set_type(isb_dp, "transit-switch");
             } else if (dp_key_refresh) {
                 /* Refresh tunnel key since encap mode has changed. */
                 int64_t dp_key = allocate_dp_key(dp_tnlids, vxlan_mode,
@@ -339,9 +338,13 @@ ts_run(struct engine_context *ctx,
             }
         }
 
-        struct shash_node *node;
-        SHASH_FOR_EACH (node, isb_ts_dps) {
-            icsbrec_datapath_binding_delete(node->data);
+        struct shash_node *node, *next;
+        SHASH_FOR_EACH_SAFE (node, next, isb_ts_dps) {
+            struct icsbrec_datapath_binding *isb_dp_to_del = node->data;
+            if (isb_dp_to_del->n_nb_ic_uuid > 0) {
+                icsbrec_datapath_binding_delete(isb_dp_to_del);
+            }
+            shash_delete(isb_ts_dps, node);
         }
     }
 }
@@ -3113,10 +3116,8 @@ ovn_db_run(struct ic_input *input_data,
            struct engine_context *eng_ctx)
 {
     gateway_run(eng_ctx, input_data);
-    enumerate_datapaths(input_data, &ic_data->dp_tnlids,
-                        &ic_data->isb_ts_dps, &ic_data->isb_tr_dps);
-    ts_run(eng_ctx, input_data, &ic_data->dp_tnlids, &ic_data->isb_ts_dps);
-    tr_run(eng_ctx, input_data, &ic_data->dp_tnlids, &ic_data->isb_tr_dps);
+    ts_run(eng_ctx, input_data, ic_data->dp_tnlids, ic_data->isb_ts_dps);
+    tr_run(eng_ctx, input_data, ic_data->dp_tnlids, ic_data->isb_tr_dps);
     port_binding_run(eng_ctx, input_data);
     route_run(eng_ctx, input_data);
     sync_service_monitor(eng_ctx, input_data);
@@ -3522,6 +3523,7 @@ main(int argc, char *argv[])
 
     stopwatch_create(OVN_IC_LOOP_STOPWATCH_NAME, SW_MS);
     stopwatch_create(IC_OVN_DB_RUN_STOPWATCH_NAME, SW_MS);
+    stopwatch_create(OVN_IC_ENUM_DATAPATHS_RUN_STOPWATCH_NAME, SW_MS);
 
     /* Initialize incremental processing engine for ovn-northd */
     inc_proc_ic_init(&ovnnb_idl_loop, &ovnsb_idl_loop,
