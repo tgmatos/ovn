@@ -8,6 +8,8 @@ ic_ovn_ic_SOURCES = ic/ovn-ic.c \
 	ic/en-enum-datapaths.h \
 	ic/en-port-binding.c \
 	ic/en-port-binding.h \
+	ic/en-route.c \
+	ic/en-route.h \
 	ic/inc-proc-ic.c \
 	ic/inc-proc-ic.h
 ic_ovn_ic_LDADD = \
