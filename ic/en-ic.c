@@ -116,14 +116,6 @@ ic_get_input_data(struct engine_node *node,
         engine_ovsdb_node_get_index(
             engine_get_input("ICSB_port_binding", node),
             "icsbrec_port_binding_by_az");
-    input_data->icsbrec_port_binding_by_ts =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_port_binding", node),
-            "icsbrec_port_binding_by_ts");
-    input_data->icsbrec_port_binding_by_ts_az =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_port_binding", node),
-            "icsbrec_port_binding_by_ts_az");
     input_data->icsbrec_route_by_az =
         engine_ovsdb_node_get_index(
             engine_get_input("ICSB_route", node),

@@ -55,8 +55,6 @@ struct ic_input {
     struct ovsdb_idl_index *sbrec_service_monitor_by_remote_type_logical_port;
     struct ovsdb_idl_index *icnbrec_transit_switch_by_name;
     struct ovsdb_idl_index *icsbrec_port_binding_by_az;
-    struct ovsdb_idl_index *icsbrec_port_binding_by_ts;
-    struct ovsdb_idl_index *icsbrec_port_binding_by_ts_az;
     struct ovsdb_idl_index *icsbrec_route_by_az;
     struct ovsdb_idl_index *icsbrec_route_by_ts;
     struct ovsdb_idl_index *icsbrec_route_by_ts_az;
@@ -76,16 +74,29 @@ struct ic_state {
     bool paused;
 };
 
+struct icsbrec_port_binding;
+
 enum ic_datapath_type { IC_SWITCH, IC_ROUTER, IC_DATAPATH_MAX };
 enum ic_port_binding_type { IC_SWITCH_PORT, IC_ROUTER_PORT, IC_PORT_MAX };
 
+const struct nbrec_logical_router_port *
+    get_lrp_by_lrp_name(struct ic_input *ic, const char *lrp_name);
+const struct sbrec_port_binding * find_sb_pb_by_name(
+    struct ovsdb_idl_index *sbrec_port_binding_by_name, const char *name);
+const struct nbrec_logical_switch *
+    find_ts_in_nb(struct ovsdb_idl_index *nbrec_ls_by_name, char *ts_name);
+const struct nbrec_logical_switch_port *
+    get_lsp_by_ts_port_name(struct ovsdb_idl_index *nbrec_port_by_name,
+                            const char *ts_port_name);
+const struct sbrec_port_binding *
+    find_sb_pb_by_name(struct ovsdb_idl_index *sbrec_port_binding_by_name,
+                       const char *name);
+enum ic_port_binding_type
+    ic_pb_get_type(const struct icsbrec_port_binding *isb_pb);
 const struct icsbrec_availability_zone *
-    az_run(struct ovsdb_idl *ovnnb_idl,
-           struct ovsdb_idl *ovnisb_idl,
+    az_run(struct ovsdb_idl *ovnnb_idl, struct ovsdb_idl *ovnisb_idl,
            struct ovsdb_idl_txn *ovnisb_idl_txn);
-
-void ovn_db_run(struct ic_input *input_data,
-                struct ic_data *ic_data,
+void ovn_db_run(struct ic_input *input_data, struct ic_data *ic_data,
                 struct engine_context *eng_ctx);
 
 #endif /* OVN_IC_H */
