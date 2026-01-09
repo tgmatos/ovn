@@ -22,7 +22,6 @@ struct ic_input {
     /* Northbound table references */
     const struct nbrec_logical_switch_table *nbrec_logical_switch_table;
     const struct nbrec_logical_router_table *nbrec_logical_router_table;
-    const struct nbrec_nb_global_table *nbrec_nb_global_table;
 
     /* Southbound table references */
     const struct sbrec_chassis_table *sbrec_chassis_table;
@@ -54,10 +53,6 @@ struct ic_input {
     struct ovsdb_idl_index *sbrec_service_monitor_by_ic_learned;
     struct ovsdb_idl_index *sbrec_service_monitor_by_remote_type_logical_port;
     struct ovsdb_idl_index *icnbrec_transit_switch_by_name;
-    struct ovsdb_idl_index *icsbrec_port_binding_by_az;
-    struct ovsdb_idl_index *icsbrec_route_by_az;
-    struct ovsdb_idl_index *icsbrec_route_by_ts;
-    struct ovsdb_idl_index *icsbrec_route_by_ts_az;
     struct ovsdb_idl_index *icsbrec_service_monitor_by_source_az;
     struct ovsdb_idl_index *icsbrec_service_monitor_by_target_az;
     struct ovsdb_idl_index *icsbrec_service_monitor_by_target_az_logical_port;
@@ -80,7 +75,8 @@ enum ic_datapath_type { IC_SWITCH, IC_ROUTER, IC_DATAPATH_MAX };
 enum ic_port_binding_type { IC_SWITCH_PORT, IC_ROUTER_PORT, IC_PORT_MAX };
 
 const struct nbrec_logical_router_port *
-    get_lrp_by_lrp_name(struct ic_input *ic, const char *lrp_name);
+get_lrp_by_lrp_name(struct ovsdb_idl_index *nbrec_lrp_by_name,
+                    const char *lrp_name);
 const struct sbrec_port_binding * find_sb_pb_by_name(
     struct ovsdb_idl_index *sbrec_port_binding_by_name, const char *name);
 const struct nbrec_logical_switch *

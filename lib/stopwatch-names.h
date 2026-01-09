@@ -44,5 +44,6 @@
 #define IC_OVN_DB_RUN_STOPWATCH_NAME "ovn_db_run"
 #define OVN_IC_ENUM_DATAPATHS_RUN_STOPWATCH_NAME "enum_datapaths_run"
 #define OVN_IC_PORT_BINDING_RUN_STOPWATCH_NAME "port_binding_run"
+#define OVN_IC_ROUTE_RUN_STOPWATCH_NAME "route_run"
 
 #endif

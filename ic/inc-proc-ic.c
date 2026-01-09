@@ -29,6 +29,7 @@
 #include "en-ic.h"
 #include "en-enum-datapaths.h"
 #include "en-port-binding.h"
+#include "en-route.h"
 #include "unixctl.h"
 #include "util.h"
 
@@ -162,6 +163,7 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 static ENGINE_NODE(ic, SB_WRITE);
 static ENGINE_NODE(enum_datapaths);
 static ENGINE_NODE(port_binding, SB_WRITE);
+static ENGINE_NODE(route);
 
 void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
                       struct ovsdb_idl_loop *sb,
@@ -181,10 +183,18 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_port_binding, &en_nb_logical_router, NULL);
     engine_add_input(&en_port_binding, &en_sb_chassis, NULL);
 
+    engine_add_input(&en_route, &en_nb_nb_global, NULL);
+    engine_add_input(&en_route, &en_nb_logical_switch, NULL);
+    engine_add_input(&en_route, &en_nb_logical_router, NULL);
+    engine_add_input(&en_route, &en_icnb_transit_switch, NULL);
+    engine_add_input(&en_route, &en_icsb_port_binding, NULL);
+    engine_add_input(&en_route, &en_icsb_route, NULL);
+    engine_add_input(&en_route, &en_nb_logical_router_static_route, NULL);
+
     engine_add_input(&en_ic, &en_enum_datapaths, NULL);
     engine_add_input(&en_ic, &en_port_binding, NULL);
-    engine_add_input(&en_ic, &en_nb_nb_global, NULL);
-    engine_add_input(&en_ic, &en_nb_logical_router_static_route, NULL);
+    engine_add_input(&en_ic, &en_route, NULL);
+
     engine_add_input(&en_ic, &en_nb_logical_router, NULL);
     engine_add_input(&en_ic, &en_nb_logical_router_port, NULL);
     engine_add_input(&en_ic, &en_nb_logical_switch, NULL);
@@ -210,7 +220,6 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_ic, &en_icsb_encap, NULL);
     engine_add_input(&en_ic, &en_icsb_service_monitor, NULL);
     engine_add_input(&en_ic, &en_icsb_gateway, NULL);
-    engine_add_input(&en_ic, &en_icsb_route, NULL);
     engine_add_input(&en_ic, &en_icsb_datapath_binding, NULL);
 
     struct engine_arg engine_arg = {

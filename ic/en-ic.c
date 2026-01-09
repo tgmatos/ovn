@@ -44,8 +44,6 @@ ic_get_input_data(struct engine_node *node,
                   struct ic_input *input_data)
 {
     /* Table references */
-    input_data->nbrec_nb_global_table =
-        EN_OVSDB_GET(engine_get_input("NB_nb_global", node));
     input_data->nbrec_logical_switch_table =
         EN_OVSDB_GET(engine_get_input("NB_logical_switch", node));
     input_data->nbrec_logical_router_table =
@@ -112,22 +110,6 @@ ic_get_input_data(struct engine_node *node,
         engine_ovsdb_node_get_index(
             engine_get_input("ICNB_transit_switch", node),
             "icnbrec_transit_switch_by_name");
-    input_data->icsbrec_port_binding_by_az =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_port_binding", node),
-            "icsbrec_port_binding_by_az");
-    input_data->icsbrec_route_by_az =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_route", node),
-            "icsbrec_route_by_az");
-    input_data->icsbrec_route_by_ts =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_route", node),
-            "icsbrec_route_by_ts");
-    input_data->icsbrec_route_by_ts_az =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_route", node),
-            "icsbrec_route_by_ts_az");
     input_data->icsbrec_service_monitor_by_source_az =
         engine_ovsdb_node_get_index(
             engine_get_input("ICSB_service_monitor", node),
