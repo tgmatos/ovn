@@ -30,7 +30,6 @@ struct ic_input {
     /* InterconnectNorthbound table references */
     const struct icnbrec_transit_switch_table *icnbrec_transit_switch_table;
     const struct icnbrec_ic_nb_global_table *icnbrec_ic_nb_global_table;
-    const struct icnbrec_transit_router_table *icnbrec_transit_router_table;
 
     /* InterconnectSouthbound table references */
     const struct icsbrec_encap_table *icsbrec_encap_table;
@@ -73,6 +72,8 @@ struct icsbrec_port_binding;
 enum ic_datapath_type { IC_SWITCH, IC_ROUTER, IC_DATAPATH_MAX };
 enum ic_port_binding_type { IC_SWITCH_PORT, IC_ROUTER_PORT, IC_PORT_MAX };
 
+uint32_t
+allocate_dp_key(struct hmap *dp_tnlids, bool vxlan_mode, const char *name);
 const struct nbrec_logical_router_port *
 get_lrp_by_lrp_name(struct ovsdb_idl_index *nbrec_lrp_by_name,
                     const char *lrp_name);

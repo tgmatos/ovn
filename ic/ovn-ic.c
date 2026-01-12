@@ -159,7 +159,7 @@ az_run(struct ovsdb_idl *ovnnb_idl,
     return NULL;
 }
 
-static uint32_t
+uint32_t
 allocate_dp_key(struct hmap *dp_tnlids, bool vxlan_mode, const char *name)
 {
     uint32_t hint = vxlan_mode ? OVN_MIN_DP_VXLAN_KEY_GLOBAL
@@ -342,89 +342,6 @@ ts_run(struct engine_context *ctx,
                 icsbrec_datapath_binding_delete(isb_dp_to_del);
             }
             shash_delete(isb_ts_dps, node);
-        }
-    }
-}
-
-static void
-tr_run(struct engine_context *ctx,
-       struct ic_input *ic,
-       struct hmap *dp_tnlids,
-       struct shash *isb_tr_dps)
-{
-    const struct nbrec_logical_router *lr;
-
-    if (ctx->ovnnb_idl_txn) {
-        struct shash nb_tres = SHASH_INITIALIZER(&nb_tres);
-        NBREC_LOGICAL_ROUTER_TABLE_FOR_EACH (lr,
-                                             ic->nbrec_logical_router_table) {
-            const char *tr_name = smap_get(&lr->options, "interconn-tr");
-            if (tr_name) {
-                shash_add(&nb_tres, tr_name, lr);
-            }
-        }
-
-        const struct icnbrec_transit_router *tr;
-        ICNBREC_TRANSIT_ROUTER_TABLE_FOR_EACH (tr,
-            ic->icnbrec_transit_router_table) {
-            lr = shash_find_and_delete(&nb_tres, tr->name);
-            if (!lr) {
-                lr = nbrec_logical_router_insert(ctx->ovnnb_idl_txn);
-                nbrec_logical_router_set_name(lr, tr->name);
-                nbrec_logical_router_update_options_setkey(
-                    lr, "interconn-tr", tr->name);
-            }
-            char *uuid_str = uuid_to_string(&tr->header_.uuid);
-            struct icsbrec_datapath_binding *isb_dp = shash_find_data(
-                isb_tr_dps, uuid_str);
-            free(uuid_str);
-
-            if (isb_dp) {
-                char *tnl_key_str = xasprintf("%"PRId64, isb_dp->tunnel_key);
-                nbrec_logical_router_update_options_setkey(
-                    lr, "requested-tnl-key", tnl_key_str);
-                free(tnl_key_str);
-            }
-        }
-
-        struct shash_node *node;
-        SHASH_FOR_EACH (node, &nb_tres) {
-            nbrec_logical_router_delete(node->data);
-        }
-        shash_destroy(&nb_tres);
-    }
-
-    /* Sync TR between INB and ISB.  This is performed after syncing with AZ
-     * SB, to avoid uncommitted ISB datapath tunnel key to be synced back to
-     * AZ. */
-    if (ctx->ovnisb_idl_txn) {
-        /* Create ISB Datapath_Binding */
-        const struct icnbrec_transit_router *tr;
-        ICNBREC_TRANSIT_ROUTER_TABLE_FOR_EACH (tr,
-            ic->icnbrec_transit_router_table) {
-            char *uuid_str = uuid_to_string(&tr->header_.uuid);
-            struct icsbrec_datapath_binding *isb_dp =
-                shash_find_and_delete(isb_tr_dps, uuid_str);
-            free(uuid_str);
-
-            if (!isb_dp) {
-                int dp_key = allocate_dp_key(dp_tnlids, false,
-                                             "transit router datapath");
-                if (!dp_key) {
-                    continue;
-                }
-
-                isb_dp = icsbrec_datapath_binding_insert(ctx->ovnisb_idl_txn);
-                icsbrec_datapath_binding_set_tunnel_key(isb_dp, dp_key);
-                icsbrec_datapath_binding_set_nb_ic_uuid(isb_dp,
-                                                        &tr->header_.uuid, 1);
-                icsbrec_datapath_binding_set_type(isb_dp, "transit-router");
-            }
-        }
-
-        struct shash_node *node;
-        SHASH_FOR_EACH (node, isb_tr_dps) {
-            icsbrec_datapath_binding_delete(node->data);
         }
     }
 }
@@ -1046,7 +963,6 @@ ovn_db_run(struct ic_input *input_data,
            struct engine_context *eng_ctx)
 {
     ts_run(eng_ctx, input_data, ic_data->dp_tnlids, ic_data->isb_ts_dps);
-    tr_run(eng_ctx, input_data, ic_data->dp_tnlids, ic_data->isb_tr_dps);
     sync_service_monitor(eng_ctx, input_data);
 }
 
@@ -1454,6 +1370,7 @@ main(int argc, char *argv[])
     stopwatch_create(OVN_IC_PORT_BINDING_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_ROUTE_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_GATEWAY_RUN_STOPWATCH_NAME, SW_MS);
+    stopwatch_create(OVN_IC_TRANSIT_ROUTER_RUN_STOPWATCH_NAME, SW_MS);
 
     /* Initialize incremental processing engine for ovn-northd */
     inc_proc_ic_init(&ovnnb_idl_loop, &ovnsb_idl_loop,

@@ -56,8 +56,6 @@ ic_get_input_data(struct engine_node *node,
         EN_OVSDB_GET(engine_get_input("ICNB_ic_nb_global", node));
     input_data->icnbrec_transit_switch_table =
         EN_OVSDB_GET(engine_get_input("ICNB_transit_switch", node));
-    input_data->icnbrec_transit_router_table =
-        EN_OVSDB_GET(engine_get_input("ICNB_transit_router", node));
     input_data->icsbrec_ic_sb_global_table =
         EN_OVSDB_GET(engine_get_input("ICSB_ic_sb_global", node));
     input_data->icsbrec_availability_zone_table =

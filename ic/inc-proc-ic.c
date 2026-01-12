@@ -29,6 +29,7 @@
 #include "en-ic.h"
 #include "en-gateway.h"
 #include "en-enum-datapaths.h"
+#include "en-tr.h"
 #include "en-port-binding.h"
 #include "en-route.h"
 #include "unixctl.h"
@@ -164,6 +165,7 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 static ENGINE_NODE(ic, SB_WRITE);
 static ENGINE_NODE(gateway, SB_WRITE);
 static ENGINE_NODE(enum_datapaths);
+static ENGINE_NODE(tr);
 static ENGINE_NODE(port_binding, SB_WRITE);
 static ENGINE_NODE(route);
 
@@ -179,6 +181,12 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
 
     engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch, NULL);
     engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding, NULL);
+
+    engine_add_input(&en_tr, &en_enum_datapaths, NULL);
+    engine_add_input(&en_tr, &en_icsb_datapath_binding, NULL);
+    engine_add_input(&en_tr, &en_nb_logical_router, NULL);
+    engine_add_input(&en_tr, &en_icnb_transit_router, NULL);
+    engine_add_input(&en_tr, &en_icnb_transit_router_port, NULL);
 
     engine_add_input(&en_port_binding, &en_icnb_transit_switch, NULL);
     engine_add_input(&en_port_binding, &en_icnb_transit_router, NULL);
@@ -198,6 +206,7 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
 
     engine_add_input(&en_ic, &en_gateway, NULL);
     engine_add_input(&en_ic, &en_enum_datapaths, NULL);
+    engine_add_input(&en_ic, &en_tr, NULL);
     engine_add_input(&en_ic, &en_port_binding, NULL);
     engine_add_input(&en_ic, &en_route, NULL);
 
@@ -217,8 +226,6 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
 
     engine_add_input(&en_ic, &en_icnb_ic_nb_global, NULL);
     engine_add_input(&en_ic, &en_icnb_transit_switch, NULL);
-    engine_add_input(&en_ic, &en_icnb_transit_router, NULL);
-    engine_add_input(&en_ic, &en_icnb_transit_router_port, NULL);
 
     engine_add_input(&en_ic, &en_icsb_port_binding, NULL);
     engine_add_input(&en_ic, &en_icsb_ic_sb_global, NULL);
