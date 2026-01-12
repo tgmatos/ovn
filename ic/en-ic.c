@@ -64,8 +64,6 @@ ic_get_input_data(struct engine_node *node,
         EN_OVSDB_GET(engine_get_input("ICSB_availability_zone", node));
     input_data->icsbrec_encap_table =
         EN_OVSDB_GET(engine_get_input("ICSB_encap", node));
-    input_data->icsbrec_gateway_table =
-        EN_OVSDB_GET(engine_get_input("ICSB_gateway", node));
     input_data->icsbrec_datapath_binding_table =
         EN_OVSDB_GET(engine_get_input("ICSB_datapath_binding", node));
 

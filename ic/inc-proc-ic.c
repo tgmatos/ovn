@@ -27,6 +27,7 @@
 #include "openvswitch/vlog.h"
 #include "inc-proc-ic.h"
 #include "en-ic.h"
+#include "en-gateway.h"
 #include "en-enum-datapaths.h"
 #include "en-port-binding.h"
 #include "en-route.h"
@@ -161,6 +162,7 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 /* Define engine nodes for other nodes. They should be defined as static to
  * avoid sparse errors. */
 static ENGINE_NODE(ic, SB_WRITE);
+static ENGINE_NODE(gateway, SB_WRITE);
 static ENGINE_NODE(enum_datapaths);
 static ENGINE_NODE(port_binding, SB_WRITE);
 static ENGINE_NODE(route);
@@ -172,6 +174,9 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
 {
     /* Define relationships between nodes where first argument is dependent
      * on the second argument */
+    engine_add_input(&en_gateway, &en_icsb_gateway, NULL);
+    engine_add_input(&en_gateway, &en_sb_chassis, NULL);
+
     engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch, NULL);
     engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding, NULL);
 
@@ -191,6 +196,7 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_route, &en_icsb_route, NULL);
     engine_add_input(&en_route, &en_nb_logical_router_static_route, NULL);
 
+    engine_add_input(&en_ic, &en_gateway, NULL);
     engine_add_input(&en_ic, &en_enum_datapaths, NULL);
     engine_add_input(&en_ic, &en_port_binding, NULL);
     engine_add_input(&en_ic, &en_route, NULL);
@@ -219,7 +225,6 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_ic, &en_icsb_availability_zone, NULL);
     engine_add_input(&en_ic, &en_icsb_encap, NULL);
     engine_add_input(&en_ic, &en_icsb_service_monitor, NULL);
-    engine_add_input(&en_ic, &en_icsb_gateway, NULL);
     engine_add_input(&en_ic, &en_icsb_datapath_binding, NULL);
 
     struct engine_arg engine_arg = {

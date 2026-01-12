@@ -34,7 +34,6 @@ struct ic_input {
 
     /* InterconnectSouthbound table references */
     const struct icsbrec_encap_table *icsbrec_encap_table;
-    const struct icsbrec_gateway_table *icsbrec_gateway_table;
     const struct icsbrec_ic_sb_global_table *icsbrec_ic_sb_global_table;
     const struct icsbrec_datapath_binding_table
         *icsbrec_datapath_binding_table;
