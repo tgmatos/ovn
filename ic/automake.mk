@@ -4,6 +4,8 @@ ic_ovn_ic_SOURCES = ic/ovn-ic.c \
 	ic/ovn-ic.h \
 	ic/en-ic.c \
 	ic/en-ic.h \
+	ic/en-gateway.c \
+	ic/en-gateway.h \
 	ic/en-enum-datapaths.c \
 	ic/en-enum-datapaths.h \
 	ic/en-port-binding.c \
