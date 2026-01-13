@@ -179,173 +179,6 @@ ic_pb_get_type(const struct icsbrec_port_binding *isb_pb)
     return IC_SWITCH_PORT;
 }
 
-static void
-ts_run(struct engine_context *ctx,
-       struct ic_input *ic,
-       struct hmap *dp_tnlids,
-       struct shash *isb_ts_dps)
-{
-    const struct icnbrec_transit_switch *ts;
-    bool dp_key_refresh = false;
-    bool vxlan_mode = false;
-    const struct icnbrec_ic_nb_global *ic_nb =
-        icnbrec_ic_nb_global_table_first(ic->icnbrec_ic_nb_global_table);
-
-    if (ic_nb && smap_get_bool(&ic_nb->options, "vxlan_mode", false)) {
-        const struct icsbrec_encap *encap;
-        ICSBREC_ENCAP_TABLE_FOR_EACH (encap, ic->icsbrec_encap_table) {
-            if (!strcmp(encap->type, "vxlan")) {
-                vxlan_mode = true;
-                break;
-            }
-        }
-    }
-
-    /* Sync INB TS to AZ NB */
-    if (ctx->ovnnb_idl_txn) {
-        struct shash nb_tses = SHASH_INITIALIZER(&nb_tses);
-        const struct nbrec_logical_switch *ls;
-
-        /* Get current NB Logical_Switch with other_config:interconn-ts */
-        NBREC_LOGICAL_SWITCH_TABLE_FOR_EACH (ls,
-                                             ic->nbrec_logical_switch_table) {
-            const char *ts_name = smap_get(&ls->other_config, "interconn-ts");
-            if (ts_name) {
-                shash_add(&nb_tses, ts_name, ls);
-            }
-        }
-
-        /* Create/update NB Logical_Switch for each TS */
-        ICNBREC_TRANSIT_SWITCH_TABLE_FOR_EACH (ts,
-            ic->icnbrec_transit_switch_table) {
-            ls = shash_find_and_delete(&nb_tses, ts->name);
-            if (!ls) {
-                ls = nbrec_logical_switch_insert(ctx->ovnnb_idl_txn);
-                nbrec_logical_switch_set_name(ls, ts->name);
-                nbrec_logical_switch_update_other_config_setkey(ls,
-                                                                "interconn-ts",
-                                                                ts->name);
-                nbrec_logical_switch_update_other_config_setkey(
-                        ls, "ic-vxlan_mode", vxlan_mode ? "true" : "false");
-            } else {
-                bool _vxlan_mode = smap_get_bool(&ls->other_config,
-                                                 "ic-vxlan_mode", false);
-                if (_vxlan_mode != vxlan_mode) {
-                    dp_key_refresh = true;
-                    nbrec_logical_switch_update_other_config_setkey(
-                            ls, "ic-vxlan_mode",
-                            vxlan_mode ? "true" : "false");
-                }
-            }
-
-            const struct icsbrec_datapath_binding *isb_dp;
-            isb_dp = shash_find_data(isb_ts_dps, ts->name);
-            if (!isb_dp) {
-                const struct icsbrec_datapath_binding *raw;
-                ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH (raw,
-                    ic->icsbrec_datapath_binding_table) {
-                    if (raw->transit_switch && !strcmp(raw->transit_switch,
-                                                       ts->name)) {
-                        isb_dp = raw;
-                        break;
-                    }
-                }
-            } else {
-                int64_t nb_tnl_key = smap_get_int(&ls->other_config,
-                                                  "requested-tnl-key",
-                                                  0);
-                if (nb_tnl_key != isb_dp->tunnel_key) {
-                    VLOG_DBG("Set other_config:requested-tnl-key %"PRId64
-                             " for transit switch %s in NB.",
-                             isb_dp->tunnel_key, ts->name);
-                    char *tnl_key_str = xasprintf("%"PRId64,
-                                                  isb_dp->tunnel_key);
-                    nbrec_logical_switch_update_other_config_setkey(
-                        ls, "requested-tnl-key", tnl_key_str);
-                    free(tnl_key_str);
-                }
-            }
-        }
-
-        /* Delete extra NB Logical_Switch with other_config:interconn-ts */
-        struct shash_node *node;
-        SHASH_FOR_EACH (node, &nb_tses) {
-            nbrec_logical_switch_delete(node->data);
-        }
-        shash_destroy(&nb_tses);
-    }
-
-    /* Sync TS between INB and ISB.  This is performed after syncing with AZ
-     * SB, to avoid uncommitted ISB datapath tunnel key to be synced back to
-     * AZ. */
-    if (ctx->ovnisb_idl_txn) {
-        /* Create ISB Datapath_Binding */
-        ICNBREC_TRANSIT_SWITCH_TABLE_FOR_EACH (ts,
-            ic->icnbrec_transit_switch_table) {
-            const struct icsbrec_datapath_binding *isb_dp =
-                shash_find_and_delete(isb_ts_dps, ts->name);
-
-            if (!isb_dp) {
-                const struct icsbrec_datapath_binding *raw_isb;
-                ICSBREC_DATAPATH_BINDING_TABLE_FOR_EACH (raw_isb,
-                    ic->icsbrec_datapath_binding_table) {
-                    if (raw_isb->n_nb_ic_uuid > 0 &&
-                        uuid_equals(&raw_isb->nb_ic_uuid[0],
-                                    &ts->header_.uuid)) {
-                        isb_dp = raw_isb;
-                        if (isb_dp->transit_switch) {
-                            shash_find_and_delete(isb_ts_dps,
-                                                  isb_dp->transit_switch);
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if (!isb_dp) {
-                /* Allocate tunnel key */
-                int64_t dp_key = allocate_dp_key(dp_tnlids, vxlan_mode,
-                                                 "transit switch datapath");
-                if (!dp_key) {
-                    continue;
-                }
-
-                isb_dp = icsbrec_datapath_binding_insert(ctx->ovnisb_idl_txn);
-                icsbrec_datapath_binding_set_transit_switch(isb_dp, ts->name);
-                icsbrec_datapath_binding_set_tunnel_key(isb_dp, dp_key);
-                icsbrec_datapath_binding_set_nb_ic_uuid(isb_dp,
-                                                        &ts->header_.uuid, 1);
-                icsbrec_datapath_binding_set_type(isb_dp, "transit-switch");
-            } else if (dp_key_refresh) {
-                /* Refresh tunnel key since encap mode has changed. */
-                int64_t dp_key = allocate_dp_key(dp_tnlids, vxlan_mode,
-                                                 "transit switch datapath");
-                if (dp_key) {
-                    icsbrec_datapath_binding_set_tunnel_key(isb_dp, dp_key);
-                }
-            }
-
-            if (!isb_dp->type) {
-                icsbrec_datapath_binding_set_type(isb_dp, "transit-switch");
-            }
-
-            if (!isb_dp->nb_ic_uuid) {
-                icsbrec_datapath_binding_set_nb_ic_uuid(isb_dp,
-                                                        &ts->header_.uuid, 1);
-            }
-        }
-
-        struct shash_node *node, *next;
-        SHASH_FOR_EACH_SAFE (node, next, isb_ts_dps) {
-            struct icsbrec_datapath_binding *isb_dp_to_del = node->data;
-            if (isb_dp_to_del->n_nb_ic_uuid > 0) {
-                icsbrec_datapath_binding_delete(isb_dp_to_del);
-            }
-            shash_delete(isb_ts_dps, node);
-        }
-    }
-}
-
 const struct nbrec_logical_router_port *
 get_lrp_by_lrp_name(struct ovsdb_idl_index *nbrec_lrp_by_name,
                     const char *lrp_name)
@@ -959,10 +792,9 @@ inc_proc_graph_dump(const char *end_node)
 
 void
 ovn_db_run(struct ic_input *input_data,
-           struct ic_data *ic_data,
+           struct ic_data *ic_data OVS_UNUSED,
            struct engine_context *eng_ctx)
 {
-    ts_run(eng_ctx, input_data, ic_data->dp_tnlids, ic_data->isb_ts_dps);
     sync_service_monitor(eng_ctx, input_data);
 }
 
@@ -1371,6 +1203,7 @@ main(int argc, char *argv[])
     stopwatch_create(OVN_IC_ROUTE_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_GATEWAY_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_TRANSIT_ROUTER_RUN_STOPWATCH_NAME, SW_MS);
+    stopwatch_create(OVN_IC_TRANSIT_SWITCH_RUN_STOPWATCH_NAME, SW_MS);
 
     /* Initialize incremental processing engine for ovn-northd */
     inc_proc_ic_init(&ovnnb_idl_loop, &ovnsb_idl_loop,

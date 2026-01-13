@@ -29,7 +29,6 @@ struct ic_input {
 
     /* InterconnectNorthbound table references */
     const struct icnbrec_transit_switch_table *icnbrec_transit_switch_table;
-    const struct icnbrec_ic_nb_global_table *icnbrec_ic_nb_global_table;
 
     /* InterconnectSouthbound table references */
     const struct icsbrec_encap_table *icsbrec_encap_table;
