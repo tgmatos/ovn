@@ -18,42 +18,6 @@
 #include "unixctl.h"
 #include "lib/inc-proc-eng.h"
 
-struct ic_input {
-    /* Northbound table references */
-    const struct nbrec_logical_switch_table *nbrec_logical_switch_table;
-    const struct nbrec_logical_router_table *nbrec_logical_router_table;
-
-    /* Southbound table references */
-    const struct sbrec_chassis_table *sbrec_chassis_table;
-    const struct sbrec_sb_global_table *sbrec_sb_global_table;
-
-    /* InterconnectNorthbound table references */
-    const struct icnbrec_transit_switch_table *icnbrec_transit_switch_table;
-
-    /* InterconnectSouthbound table references */
-    const struct icsbrec_encap_table *icsbrec_encap_table;
-    const struct icsbrec_ic_sb_global_table *icsbrec_ic_sb_global_table;
-    const struct icsbrec_datapath_binding_table
-        *icsbrec_datapath_binding_table;
-    const struct icsbrec_availability_zone_table
-        *icsbrec_availability_zone_table;
-
-    /* Indexes */
-    const struct icsbrec_availability_zone *runned_az;
-    struct ovsdb_idl_index *nbrec_ls_by_name;
-    struct ovsdb_idl_index *nbrec_lr_by_name;
-    struct ovsdb_idl_index *nbrec_lrp_by_name;
-    struct ovsdb_idl_index *nbrec_port_by_name;
-    struct ovsdb_idl_index *sbrec_chassis_by_name;
-    struct ovsdb_idl_index *sbrec_port_binding_by_name;
-};
-
-struct ic_data {
-    /* Global state for 'en-enum-datapaths'. */
-    struct hmap *dp_tnlids;
-    struct shash *isb_ts_dps;
-    struct shash *isb_tr_dps;
-};
 struct ic_state {
     bool had_lock;
     bool paused;
@@ -84,7 +48,5 @@ enum ic_port_binding_type
 const struct icsbrec_availability_zone *
     az_run(struct ovsdb_idl *ovnnb_idl, struct ovsdb_idl *ovnisb_idl,
            struct ovsdb_idl_txn *ovnisb_idl_txn);
-void ovn_db_run(struct ic_input *input_data, struct ic_data *ic_data,
-                struct engine_context *eng_ctx);
 
 #endif /* OVN_IC_H */

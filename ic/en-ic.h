@@ -1,12 +1,6 @@
 #ifndef EN_IC_H
 #define EN_IC_H 1
 
-#include <config.h>
-
-#include <getopt.h>
-#include <stdlib.h>
-#include <stdio.h>
-
 #include "lib/inc-proc-eng.h"
 
 enum engine_node_state en_ic_run(struct engine_node *node OVS_UNUSED,

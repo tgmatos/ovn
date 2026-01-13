@@ -43,9 +43,7 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
     NB_NODE(nb_global, "nb_global") \
     NB_NODE(logical_router_static_route, "logical_router_static_route") \
     NB_NODE(logical_router, "logical_router") \
-    NB_NODE(logical_router_port, "logical_router_port") \
     NB_NODE(logical_switch, "logical_switch") \
-    NB_NODE(logical_switch_port, "logical_switch_port") \
     NB_NODE(load_balancer, "load_balancer") \
     NB_NODE(load_balancer_group, "load_balancer_group")
 
@@ -68,8 +66,6 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 #define SB_NODES \
     SB_NODE(sb_global, "sb_global") \
     SB_NODE(chassis, "chassis") \
-    SB_NODE(encap, "encap") \
-    SB_NODE(datapath_binding, "datapath_binding") \
     SB_NODE(port_binding, "port_binding") \
     SB_NODE(service_monitor, "service_monitor")
 
@@ -112,8 +108,6 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
 #undef ICNB_NODE
 
 #define ICSB_NODES \
-    ICSB_NODE(ic_sb_global, "ic_sb_global") \
-    ICSB_NODE(availability_zone, "availability_zone") \
     ICSB_NODE(service_monitor, "service_monitor") \
     ICSB_NODE(route, "route") \
     ICSB_NODE(datapath_binding, "datapath_binding") \
@@ -229,18 +223,6 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_ic, &en_port_binding, NULL);
     engine_add_input(&en_ic, &en_route, NULL);
     engine_add_input(&en_ic, &en_srv_mon, NULL);
-
-    engine_add_input(&en_ic, &en_nb_logical_router, NULL);
-    engine_add_input(&en_ic, &en_nb_logical_router_port, NULL);
-    engine_add_input(&en_ic, &en_nb_logical_switch, NULL);
-    engine_add_input(&en_ic, &en_nb_logical_switch_port, NULL);
-
-    engine_add_input(&en_ic, &en_sb_chassis, NULL);
-    engine_add_input(&en_ic, &en_sb_encap, NULL);
-    engine_add_input(&en_ic, &en_sb_datapath_binding, NULL);
-
-    engine_add_input(&en_ic, &en_icsb_ic_sb_global, NULL);
-    engine_add_input(&en_ic, &en_icsb_availability_zone, NULL);
 
     struct engine_arg engine_arg = {
         .nb_idl = nb->idl,

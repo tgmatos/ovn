@@ -20,32 +20,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "bitmap.h"
 #include "command-line.h"
 #include "daemon.h"
-#include "dirs.h"
-#include "openvswitch/dynamic-string.h"
 #include "fatal-signal.h"
-#include "hash.h"
-#include "openvswitch/hmap.h"
 #include "lib/ovn-ic-nb-idl.h"
 #include "lib/ovn-ic-sb-idl.h"
 #include "lib/ovn-nb-idl.h"
 #include "lib/ovn-sb-idl.h"
-#include "lib/ovn-util.h"
 #include "memory.h"
 #include "openvswitch/poll-loop.h"
-#include "ovsdb-idl.h"
 #include "simap.h"
-#include "smap.h"
-#include "sset.h"
 #include "stream.h"
 #include "stream-ssl.h"
-#include "unixctl.h"
-#include "util.h"
-#include "uuid.h"
 #include "openvswitch/vlog.h"
-#include "vec.h"
 #include "inc-proc-ic.h"
 #include "ovn-ic.h"
 #include "stopwatch-names.h"
@@ -358,13 +345,6 @@ inc_proc_graph_dump(const char *end_node)
     ovsdb_idl_loop_destroy(&ovnisb_idl_loop);
 }
 
-void
-ovn_db_run(struct ic_input *input_data OVS_UNUSED,
-           struct ic_data *ic_data OVS_UNUSED,
-           struct engine_context *eng_ctx OVS_UNUSED)
-{
-
-}
 
 static void
 parse_options(int argc OVS_UNUSED, char *argv[] OVS_UNUSED)
@@ -765,7 +745,6 @@ main(int argc, char *argv[])
                              ovn_conn_show, ovnisb_idl_loop.idl);
 
     stopwatch_create(OVN_IC_LOOP_STOPWATCH_NAME, SW_MS);
-    stopwatch_create(IC_OVN_DB_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_ENUM_DATAPATHS_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_PORT_BINDING_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_ROUTE_RUN_STOPWATCH_NAME, SW_MS);
