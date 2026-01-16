@@ -42,7 +42,6 @@ COVERAGE_DEFINE(route_run);
 static void
 route_run(const struct engine_context *eng_ctx,
           struct route_input *route_input,
-          struct ed_type_route *route_data,
           const struct nbrec_logical_router_table *nb_lr_table,
           const struct nbrec_nb_global_table *nb_global_table);
 static void route_init(struct ed_type_route *data);
@@ -240,7 +239,7 @@ en_route_run(struct engine_node *node, void *data)
 
     COVERAGE_INC(route_run);
     stopwatch_start(OVN_IC_ROUTE_RUN_STOPWATCH_NAME, time_usec());
-    route_run(eng_ctx, &route_input, route_data, nb_lr_table, nb_global_table);
+    route_run(eng_ctx, &route_input, nb_lr_table, nb_global_table);
     stopwatch_stop(OVN_IC_ROUTE_RUN_STOPWATCH_NAME, time_usec());
 
     return EN_UPDATED;
@@ -321,7 +320,6 @@ route_clear(struct ed_type_route *data)
 static void
 route_run(const struct engine_context *eng_ctx,
           struct route_input *route_input,
-          struct ed_type_route *route_data,
           const struct nbrec_logical_router_table *nb_lr_table,
           const struct nbrec_nb_global_table *nb_global_table)
 {

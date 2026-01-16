@@ -29,6 +29,7 @@
 #include "en-ic.h"
 #include "en-gateway.h"
 #include "en-enum-datapaths.h"
+#include "en-ts.h"
 #include "en-port-binding.h"
 #include "en-route.h"
 #include "unixctl.h"
@@ -163,7 +164,8 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
  * avoid sparse errors. */
 static ENGINE_NODE(ic, SB_WRITE);
 static ENGINE_NODE(gateway, SB_WRITE);
-static ENGINE_NODE(enum_datapaths);
+static ENGINE_NODE(enum_datapaths, CLEAR_TRACKED_DATA);
+static ENGINE_NODE(ts, SB_WRITE, CLEAR_TRACKED_DATA);
 static ENGINE_NODE(port_binding, SB_WRITE);
 static ENGINE_NODE(route);
 
@@ -177,9 +179,19 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_gateway, &en_icsb_gateway, NULL);
     engine_add_input(&en_gateway, &en_sb_chassis, NULL);
 
-    engine_add_input(&en_enum_datapaths, &en_nb_logical_switch, NULL);
-    engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch, NULL);
-    engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding, NULL);
+    engine_add_input(&en_enum_datapaths, &en_nb_logical_switch,
+                     nb_logical_switch_handler);
+    engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding,
+                     icsb_datapath_binding_handler);
+    engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch,
+                     engine_noop_handler);
+
+    engine_add_input(&en_ts, &en_icnb_transit_switch, en_ts_handler);
+    engine_add_input(&en_ts, &en_icnb_ic_nb_global, en_ts_ic_nb_global_handler);
+    engine_add_input(&en_ts, &en_nb_logical_switch, engine_noop_handler);
+    engine_add_input(&en_ts, &en_icsb_datapath_binding, engine_noop_handler);
+    engine_add_input(&en_ts, &en_icsb_encap, engine_noop_handler);
+    engine_add_input(&en_ts, &en_enum_datapaths, engine_noop_handler);
 
     engine_add_input(&en_port_binding, &en_icnb_transit_switch, NULL);
     engine_add_input(&en_port_binding, &en_icnb_transit_router, NULL);
@@ -199,6 +211,7 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
 
     engine_add_input(&en_ic, &en_gateway, NULL);
     engine_add_input(&en_ic, &en_enum_datapaths, NULL);
+    engine_add_input(&en_ic, &en_ts, NULL);
     engine_add_input(&en_ic, &en_port_binding, NULL);
     engine_add_input(&en_ic, &en_route, NULL);
 
@@ -226,7 +239,7 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
     engine_add_input(&en_ic, &en_icsb_encap, NULL);
     engine_add_input(&en_ic, &en_icsb_service_monitor, NULL);
     engine_add_input(&en_ic, &en_icsb_datapath_binding, NULL);
-
+    
     struct engine_arg engine_arg = {
         .nb_idl = nb->idl,
         .sb_idl = sb->idl,
