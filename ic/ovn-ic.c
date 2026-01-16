@@ -751,6 +751,7 @@ main(int argc, char *argv[])
     stopwatch_create(OVN_IC_GATEWAY_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_TRANSIT_ROUTER_RUN_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_TRANSIT_SWITCH_RUN_STOPWATCH_NAME, SW_MS);
+    stopwatch_create(OVN_IC_TRANSIT_SWITCH_STOPWATCH_NAME, SW_MS);
     stopwatch_create(OVN_IC_SERVICE_MONITOR_RUN_STOPWATCH_NAME, SW_MS);
 
     /* Initialize incremental processing engine for ovn-northd */

@@ -160,9 +160,9 @@ VLOG_DEFINE_THIS_MODULE(inc_proc_ic);
  * avoid sparse errors. */
 static ENGINE_NODE(ic, SB_WRITE);
 static ENGINE_NODE(gateway, SB_WRITE);
-static ENGINE_NODE(enum_datapaths);
+static ENGINE_NODE(enum_datapaths, CLEAR_TRACKED_DATA);
 static ENGINE_NODE(tr);
-static ENGINE_NODE(ts, SB_WRITE);
+static ENGINE_NODE(ts, SB_WRITE, CLEAR_TRACKED_DATA);
 static ENGINE_NODE(port_binding, SB_WRITE);
 static ENGINE_NODE(route);
 static ENGINE_NODE(srv_mon, SB_WRITE);
@@ -172,23 +172,43 @@ void inc_proc_ic_init(struct ovsdb_idl_loop *nb,
                       struct ovsdb_idl_loop *icnb,
                       struct ovsdb_idl_loop *icsb)
 {
-    /* Define relationships between nodes where first argument is dependent
-     * on the second argument */
+    /*
+     * Define relationships between nodes where first argument is dependent
+     * on the second argument.
+     */
     engine_add_input(&en_gateway, &en_icsb_gateway, NULL);
     engine_add_input(&en_gateway, &en_sb_chassis, NULL);
 
-    engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch, NULL);
-    engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding, NULL);
+    /*
+     * In enum_datapath engine, the transit_switch table is used
+     * in the logical_switch handler for when a logical switch is removed
+     * but a transit switch still exists. Because of this, the engine
+     * does not care about updates on the transit switch table.
+     */
+    engine_add_input(&en_enum_datapaths, &en_nb_logical_switch,
+                     nb_logical_switch_handler);
+    engine_add_input(&en_enum_datapaths, &en_icsb_datapath_binding,
+                     icsb_datapath_binding_handler);
+    engine_add_input(&en_enum_datapaths, &en_icnb_transit_switch,
+                     engine_noop_handler);
 
-    engine_add_input(&en_ts, &en_enum_datapaths, NULL);
-    engine_add_input(&en_ts, &en_icsb_datapath_binding, NULL);
-    engine_add_input(&en_ts, &en_nb_logical_switch, NULL);
-    engine_add_input(&en_ts, &en_icnb_ic_nb_global, NULL);
-    engine_add_input(&en_ts, &en_icnb_transit_switch, NULL);
-    engine_add_input(&en_ts, &en_icsb_encap, NULL);
+    /*
+     * The transit_switch engine only cares about changes on the logical_switch
+     * table and ic_nb_global table, but other tables are used for a
+     * full recompute of the engine.
+     * The enum_datapaths engine is used as input for the transit_switch engine
+     * but the enum_datapaths engine runs only if the transit_switch or
+     * transit_router makes a request.
+     */
+    engine_add_input(&en_ts, &en_icnb_transit_switch, en_ts_handler);
+    engine_add_input(&en_ts, &en_icnb_ic_nb_global, en_ts_ic_nb_global_handler);
+    engine_add_input(&en_ts, &en_nb_logical_switch, engine_noop_handler);
+    engine_add_input(&en_ts, &en_icsb_datapath_binding, engine_noop_handler);
+    engine_add_input(&en_ts, &en_icsb_encap, engine_noop_handler);
+    engine_add_input(&en_ts, &en_enum_datapaths, engine_noop_handler);
 
-    engine_add_input(&en_tr, &en_enum_datapaths, NULL);
-    engine_add_input(&en_tr, &en_icsb_datapath_binding, NULL);
+    engine_add_input(&en_tr, &en_enum_datapaths, engine_noop_handler);
+    engine_add_input(&en_tr, &en_icsb_datapath_binding, engine_noop_handler);
     engine_add_input(&en_tr, &en_nb_logical_router, NULL);
     engine_add_input(&en_tr, &en_icnb_transit_router, NULL);
     engine_add_input(&en_tr, &en_icnb_transit_router_port, NULL);
