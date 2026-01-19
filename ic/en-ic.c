@@ -50,8 +50,6 @@ ic_get_input_data(struct engine_node *node,
         EN_OVSDB_GET(engine_get_input("NB_logical_router", node));
     input_data->sbrec_chassis_table =
         EN_OVSDB_GET(engine_get_input("SB_chassis", node));
-    input_data->sbrec_sb_global_table =
-        EN_OVSDB_GET(engine_get_input("SB_sb_global", node));
     input_data->icsbrec_ic_sb_global_table =
         EN_OVSDB_GET(engine_get_input("ICSB_ic_sb_global", node));
     input_data->icsbrec_availability_zone_table =
@@ -78,34 +76,6 @@ ic_get_input_data(struct engine_node *node,
         engine_ovsdb_node_get_index(
             engine_get_input("SB_chassis", node),
             "sbrec_chassis_by_name");
-    input_data->sbrec_port_binding_by_name =
-        engine_ovsdb_node_get_index(
-            engine_get_input("SB_port_binding", node),
-            "sbrec_port_binding_by_name");
-    input_data->sbrec_service_monitor_by_remote_type =
-        engine_ovsdb_node_get_index(
-            engine_get_input("SB_service_monitor", node),
-            "sbrec_service_monitor_by_remote_type");
-    input_data->sbrec_service_monitor_by_ic_learned =
-        engine_ovsdb_node_get_index(
-            engine_get_input("SB_service_monitor", node),
-            "sbrec_service_monitor_by_ic_learned");
-    input_data->sbrec_service_monitor_by_remote_type_logical_port =
-        engine_ovsdb_node_get_index(
-            engine_get_input("SB_service_monitor", node),
-            "sbrec_service_monitor_by_remote_type_logical_port");
-    input_data->icsbrec_service_monitor_by_source_az =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_service_monitor", node),
-            "icsbrec_service_monitor_by_source_az");
-    input_data->icsbrec_service_monitor_by_target_az =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_service_monitor", node),
-            "icsbrec_service_monitor_by_target_az");
-    input_data->icsbrec_service_monitor_by_target_az_logical_port =
-        engine_ovsdb_node_get_index(
-            engine_get_input("ICSB_service_monitor", node),
-            "icsbrec_service_monitor_by_target_az_logical_port");
 }
 
 enum engine_node_state

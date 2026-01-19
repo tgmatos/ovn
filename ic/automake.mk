@@ -16,6 +16,8 @@ ic_ovn_ic_SOURCES = ic/ovn-ic.c \
 	ic/en-port-binding.h \
 	ic/en-route.c \
 	ic/en-route.h \
+	ic/en-srv-mon.c \
+	ic/en-srv-mon.h \
 	ic/inc-proc-ic.c \
 	ic/inc-proc-ic.h
 ic_ovn_ic_LDADD = \

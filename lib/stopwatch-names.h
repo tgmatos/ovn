@@ -48,5 +48,6 @@
 #define OVN_IC_TRANSIT_ROUTER_RUN_STOPWATCH_NAME "transit_router_run"
 #define OVN_IC_PORT_BINDING_RUN_STOPWATCH_NAME "port_binding_run"
 #define OVN_IC_ROUTE_RUN_STOPWATCH_NAME "route_run"
+#define OVN_IC_SERVICE_MONITOR_RUN_STOPWATCH_NAME "service_monitor_run"
 
 #endif
