@@ -186,11 +186,6 @@ ic_pb_get_type(const struct icsbrec_port_binding *isb_pb)
 }
 
 static void
-        }
-    }
-}
-
-static void
 tr_run(struct engine_context *ctx,
        struct ic_input *ic,
        struct hmap *dp_tnlids,
@@ -2957,9 +2952,6 @@ ovn_db_run(struct ic_input *input_data,
            struct engine_context *eng_ctx)
 {
     gateway_run(eng_ctx, input_data);
-    enumerate_datapaths(input_data, &ic_data->dp_tnlids,
-                        &ic_data->isb_ts_dps, &ic_data->isb_tr_dps);
-    tr_run(eng_ctx, input_data, &ic_data->dp_tnlids, &ic_data->isb_tr_dps);
     port_binding_run(eng_ctx, input_data);
     route_run(eng_ctx, input_data);
     sync_service_monitor(eng_ctx, input_data);
