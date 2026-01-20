@@ -120,39 +120,42 @@ icsb_datapath_binding_handler(struct engine_node *node, void *data)
 
             shash_add(&tr_data->deleted_datapaths,
                       isb_dp->transit_switch, isb_dp);
-        } else {
-            if (icsbrec_datapath_binding_is_new(isb_dp)) {
-                const struct icsbrec_datapath_binding *old_dp = NULL;
-                if (ic_dp_get_type(isb_dp) == IC_ROUTER) {
-                    char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
-                    old_dp = shash_find_data(&dp_data->isb_tr_dps, uuid_str);
-                    free(uuid_str);
-                } else {
-                    old_dp = shash_find_data(&dp_data->isb_ts_dps,
-                                             isb_dp->transit_switch);
+            continue;
+        }
+        
+        if (icsbrec_datapath_binding_is_new(isb_dp)) {
+            const struct icsbrec_datapath_binding *old_dp = NULL;
+            if (ic_dp_get_type(isb_dp) == IC_ROUTER) {
+                char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
+                old_dp = shash_find_data(&dp_data->isb_tr_dps, uuid_str);
+                free(uuid_str);
+                if (old_dp) {
+                    ovn_free_tnlid(&dp_data->dp_tnlids, old_dp->tunnel_key);
                 }
-
+            } else {
+                old_dp = shash_find_data(&dp_data->isb_ts_dps,
+                                         isb_dp->transit_switch);
                 if (old_dp) {
                     ovn_free_tnlid(&dp_data->dp_tnlids, old_dp->tunnel_key);
                 }
 
-                struct shash_node *shnode;
-                SHASH_FOR_EACH_SAFE (shnode, &tr_data->crupdated_ls) {
-                    struct nbrec_logical_switch *ls =
-                        (struct nbrec_logical_switch *) shnode->data;
-                    if (!strcmp(ls->name, isb_dp->transit_switch)) {
-                        int64_t nb_tnl_key = smap_get_int(&ls->other_config,
-                                              "requested-tnl-key", 0);
-                        if (nb_tnl_key != isb_dp->tunnel_key) {
-                            VLOG_DBG("Set other_config:requested-tnl-key %"PRId64
-                                     " for transit switch %s in NB.",
-                              isb_dp->tunnel_key, isb_dp->transit_switch);
-                            char *tnl_key_str =
-                                xasprintf("%"PRId64, isb_dp->tunnel_key);
-                            nbrec_logical_switch_update_other_config_setkey(
-                              ls, "requested-tnl-key", tnl_key_str);
-                            free(tnl_key_str);
-                        }
+                // TS adicionado
+                // LS adicionado pelo nb_ls_handler
+                // Datapath adicionado pelo dp_handler
+                struct nbrec_logical_switch *ls =
+                    shash_find_data(&tr_data->crupdated_ls, isb_dp->transit_switch);
+                if(ls) {
+                    int64_t nb_tnl_key = smap_get_int(&ls->other_config,
+                                                      "requested-tnl-key", 0);
+                    if (nb_tnl_key != isb_dp->tunnel_key) {
+                        VLOG_DBG("Set other_config:requested-tnl-key %"PRId64
+                                 " for transit switch %s in NB.",
+                                 isb_dp->tunnel_key, isb_dp->transit_switch);
+                        char *tnl_key_str =
+                            xasprintf("%"PRId64, isb_dp->tunnel_key);
+                        nbrec_logical_switch_update_other_config_setkey(
+                                   ls, "requested-tnl-key", tnl_key_str);
+                        free(tnl_key_str);
                     }
                 }
             }
@@ -160,6 +163,9 @@ icsb_datapath_binding_handler(struct engine_node *node, void *data)
             shash_add(&tr_data->crupdated_datapaths,
                       isb_dp->transit_switch, isb_dp);
             ovn_add_tnlid(&dp_data->dp_tnlids, isb_dp->tunnel_key);
+        }
+
+        if(icsbrec_datapath_binding_is_updated(isb_dp, ICSBREC_DATAPATH_BINDING_COL_TUNNEL_KEY)) {
             if (ic_dp_get_type(isb_dp) == IC_ROUTER) {
                 char *uuid_str = uuid_to_string(isb_dp->nb_ic_uuid);
                 shash_replace(&dp_data->isb_tr_dps, uuid_str, (void *)isb_dp);
